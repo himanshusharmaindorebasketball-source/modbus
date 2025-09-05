@@ -1,0 +1,10 @@
+com\example\modbus\ChannelDataPage$1.class
+com\example\modbus\ChannelConfig.class
+com\example\modbus\ChannelDataPage.class
+com\example\modbus\Main.class
+com\example\modbus\SettingsPage.class
+com\example\modbus\TestChannelConfigPage.class
+com\example\modbus\DataPage$1.class
+com\example\modbus\DataPage.class
+com\example\modbus\ModbusSettings.class
+com\example\modbus\SimpleSerialPortWrapper.class
