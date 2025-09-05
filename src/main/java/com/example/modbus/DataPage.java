@@ -26,6 +26,7 @@ public class DataPage {
     private DefaultTableModel tableModel;
     private final ModbusSettings settings;
     private final ModbusConnectionManager connectionManager;
+    private Runnable dataChangeListener;
 
     // Controls
     private JTextField deviceIdField;
@@ -232,6 +233,7 @@ public class DataPage {
                     tableModel.addRow(new Object[]{ts, start + i, f});
                 }
             }
+            notifyDataChange();
         });
     }
 
@@ -242,6 +244,7 @@ public class DataPage {
             for (int i = 0; i < data.length; i++) {
                 tableModel.addRow(new Object[]{ts, start + i, data[i]});
             }
+            notifyDataChange();
         });
     }
 
@@ -255,4 +258,25 @@ public class DataPage {
     public void shutdown() { stopPolling(); }
 
     public void refreshTable() { tableModel.setRowCount(0); }
+    
+    public Object[] getFirstTableEntry() {
+        if (tableModel.getRowCount() > 0) {
+            Object[] rowData = new Object[3];
+            rowData[0] = tableModel.getValueAt(0, 0); // Timestamp
+            rowData[1] = tableModel.getValueAt(0, 1); // Index
+            rowData[2] = tableModel.getValueAt(0, 2); // Value
+            return rowData;
+        }
+        return null;
+    }
+    
+    public void setDataChangeListener(Runnable listener) {
+        this.dataChangeListener = listener;
+    }
+    
+    private void notifyDataChange() {
+        if (dataChangeListener != null) {
+            SwingUtilities.invokeLater(dataChangeListener);
+        }
+    }
 }

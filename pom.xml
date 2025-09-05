@@ -68,6 +68,13 @@
             <version>20231013</version>
         </dependency>
 
+        <!-- Google Gson for JSON serialization/deserialization -->
+        <dependency>
+            <groupId>com.google.code.gson</groupId>
+            <artifactId>gson</artifactId>
+            <version>2.10.1</version>
+        </dependency>
+
         <!-- Apache POI for Excel export -->
         <dependency>
             <groupId>org.apache.poi</groupId>

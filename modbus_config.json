@@ -1,0 +1,37 @@
+[
+  {
+    "slaveId": 5,
+    "address": 30001,
+    "length": 2
+  },
+  {
+    "slaveId": 5,
+    "address": 30003,
+    "length": 2
+  },
+  {
+    "slaveId": 5,
+    "address": 30005,
+    "length": 2
+  },
+  {
+    "slaveId": 5,
+    "address": 30007,
+    "length": 2
+  },
+  {
+    "slaveId": 5,
+    "address": 30009,
+    "length": 2
+  },
+  {
+    "slaveId": 5,
+    "address": 30011,
+    "length": 20
+  },
+  {
+    "slaveId": 5,
+    "address": 30056,
+    "length": 20
+  }
+]

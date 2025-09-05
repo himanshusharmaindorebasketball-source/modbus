@@ -8,6 +8,7 @@ import java.awt.event.WindowEvent;
 public class ModbusGUI {
     private JFrame mainFrame;
     private DataPage dataPage;
+    private FilterDataPage filterDataPage;
     private SettingsPage settingsPage;
     private ModbusSettings settings;
     private ChannelRuntimeService channelRuntimeService;
@@ -18,13 +19,19 @@ public class ModbusGUI {
 
     public ModbusGUI() {
         try {
-            settings = new ModbusSettings();
-            settings.setPortName("COM1");
-            settings.setBaudRate(9600);
-            settings.setDataBits(8);
-            settings.setParity(0);
-            settings.setStopBits(1);
-            settings.setDeviceId(1);
+            // Load saved settings or use defaults
+            SettingsManager settingsManager = new SettingsManager();
+            settings = settingsManager.loadSettings();
+            
+            // If no saved settings exist, use defaults
+            if (settings.getPortName() == null || settings.getPortName().isEmpty()) {
+                settings.setPortName("COM1");
+                settings.setBaudRate(9600);
+                settings.setDataBits(8);
+                settings.setParity(0);
+                settings.setStopBits(1);
+                settings.setDeviceId(1);
+            }
         } catch (Exception e) {
             JOptionPane.showMessageDialog(null, "Failed to initialize ModbusSettings: " + e.getMessage());
             return;
@@ -35,6 +42,7 @@ public class ModbusGUI {
 
     private void buildUI() {
         dataPage = new DataPage(settings, connectionManager);
+        filterDataPage = new FilterDataPage(settings, connectionManager);
 
         mainFrame = new JFrame("Modbus GUI");
         mainFrame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
@@ -42,12 +50,20 @@ public class ModbusGUI {
 
         JTabbedPane tabbedPane = new JTabbedPane();
         tabbedPane.addTab("Data", dataPage.getPanel());
+        tabbedPane.addTab("FilterData", filterDataPage.getPanel());
 
         try {
             channelRuntimeService = new ChannelRuntimeService(settings, connectionManager.getMaster());
             ChannelDefinitionPage.ChannelDefinitionContext.setRuntime(channelRuntimeService);
-            channelDefinitionPage = new ChannelDefinitionPage(channelRuntimeService);
+            channelDefinitionPage = new ChannelDefinitionPage(channelRuntimeService, dataPage);
             channelDataArrangementPage = new ChannelDataArrangementPage(channelRuntimeService);
+            
+            // Set up data change listener to refresh Channel Definition tab when Data tab updates
+            dataPage.setDataChangeListener(() -> {
+                if (channelDefinitionPage != null) {
+                    channelDefinitionPage.refreshOutputTable();
+                }
+            });
         } catch (Exception e) {
             JOptionPane.showMessageDialog(null, "Channel runtime init failed: " + e.getMessage());
         }
@@ -81,20 +97,31 @@ public class ModbusGUI {
                         settings = connectSettings;
 
                         if (dataPage != null) dataPage.shutdown();
+                        if (filterDataPage != null) filterDataPage.shutdown();
                         if (channelRuntimeService != null) channelRuntimeService.shutdown();
 
                         dataPage = new DataPage(settings, connectionManager);
+                        filterDataPage = new FilterDataPage(settings, connectionManager);
                         try {
                             channelRuntimeService = new ChannelRuntimeService(settings, connectionManager.getMaster());
                             ChannelDefinitionPage.ChannelDefinitionContext.setRuntime(channelRuntimeService);
-                            channelDefinitionPage = new ChannelDefinitionPage(channelRuntimeService);
+                            channelDefinitionPage = new ChannelDefinitionPage(channelRuntimeService, dataPage);
                             channelDataArrangementPage = new ChannelDataArrangementPage(channelRuntimeService);
+                            
+                            // Set up data change listener to refresh Channel Definition tab when Data tab updates
+                            dataPage.setDataChangeListener(() -> {
+                                if (channelDefinitionPage != null) {
+                                    channelDefinitionPage.refreshOutputTable();
+                                }
+                            });
                         } catch (Exception e) {
                             JOptionPane.showMessageDialog(null, "Channel runtime re-init failed: " + e.getMessage());
                         }
 
                         int dataIndex = tabbedPane.indexOfTab("Data");
                         if (dataIndex >= 0) tabbedPane.setComponentAt(dataIndex, dataPage.getPanel());
+                        int filterDataIndex = tabbedPane.indexOfTab("FilterData");
+                        if (filterDataIndex >= 0) tabbedPane.setComponentAt(filterDataIndex, filterDataPage.getPanel());
                         int chDefIndex = tabbedPane.indexOfTab("Channel Definition");
                         if (chDefIndex >= 0 && channelDefinitionPage != null) tabbedPane.setComponentAt(chDefIndex, channelDefinitionPage.getPanel());
                         else if (channelDefinitionPage != null) tabbedPane.addTab("Channel Definition", channelDefinitionPage.getPanel());
@@ -116,6 +143,7 @@ public class ModbusGUI {
             @Override
             public void windowClosed(WindowEvent e) {
                 if (dataPage != null) dataPage.shutdown();
+                if (filterDataPage != null) filterDataPage.shutdown();
                 if (channelRuntimeService != null) channelRuntimeService.shutdown();
                 connectionManager.close();
             }

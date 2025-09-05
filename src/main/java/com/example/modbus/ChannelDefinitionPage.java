@@ -11,6 +11,7 @@ public class ChannelDefinitionPage {
     private final JPanel panel;
     private final DefaultTableModel model;
     private final ChannelRuntimeService runtime;
+    private final DataPage dataPage;
 
     // Channel selection
     private JComboBox<Integer> channelNumberCombo;
@@ -35,8 +36,9 @@ public class ChannelDefinitionPage {
 
     private List<ChannelConfig> channelConfigs;
 
-    public ChannelDefinitionPage(ChannelRuntimeService runtime) {
+    public ChannelDefinitionPage(ChannelRuntimeService runtime, DataPage dataPage) {
         this.runtime = runtime;
+        this.dataPage = dataPage;
         this.panel = new JPanel(new BorderLayout());
         this.model = new DefaultTableModel(new String[]{"Channel", "Register", "Raw", "Output", "Unit"}, 0);
         loadChannels();
@@ -50,6 +52,11 @@ public class ChannelDefinitionPage {
         channelConfigs = new ArrayList<>(ChannelRepository.load());
         if (channelConfigs.isEmpty()) {
             channelConfigs = new ArrayList<>(ChannelConfigPage.getChannelConfigs());
+        }
+        // If still empty, create a default channel
+        if (channelConfigs.isEmpty()) {
+            ChannelConfig defaultChannel = new ChannelConfig(1, 0, "Float32", 1, 0, 0, 100, 0, 2, Color.RED, "x", "", "Default Channel");
+            channelConfigs.add(defaultChannel);
         }
     }
 
@@ -202,12 +209,12 @@ public class ChannelDefinitionPage {
     }
 
     private void onAdd() {
-        int next = channelConfigs.stream().mapToInt(ChannelConfig::getChannelNumber).max().orElse(0) + 1;
-        ChannelConfig c = new ChannelConfig(next, 0, "Float32", 1, 0, 0, 100, 0, 2, Color.RED, "x", "", "Channel" + next);
-        channelConfigs.add(c);
+        //int next = channelConfigs.stream().mapToInt(ChannelConfig::getChannelNumber).max().orElse(0) + 1;
+        //ChannelConfig c = new ChannelConfig(next, 0, "Float32", 1, 0, 0, 100, 0, 2, Color.RED, "x", "", "Channel" + next);
+       // channelConfigs.add(c);
         saveChannels();
         refreshChannelNumbers();
-        channelNumberCombo.setSelectedItem(next);
+       //channelNumberCombo.setSelectedItem(next);
         refreshOutputTable();
     }
 
@@ -257,16 +264,34 @@ public class ChannelDefinitionPage {
         refreshOutputTable();
     }
 
-    private void refreshOutputTable() {
+    public void refreshOutputTable() {
         List<ChannelConfig> cfgs = channelConfigs;
-        if (cfgs == null) return;
+        if (cfgs == null) cfgs = new ArrayList<>();
         Map<Integer, Double> raw = runtime.getRawValues();
         Map<Integer, Double> out = runtime.getComputedValues();
         model.setRowCount(0);
-        for (ChannelConfig c : cfgs) {
-            Double r = raw.get(c.getChannelNumber());
-            Double o = out.get(c.getChannelNumber());
-            model.addRow(new Object[]{c.getChannelName(), c.getChannelAddress(), r, o, c.getUnit()});
+        
+        // Get first entry from Data tab table
+        Object[] firstDataEntry = dataPage != null ? dataPage.getFirstTableEntry() : null;
+        Object dataTabValue = null;
+        if (firstDataEntry != null && firstDataEntry.length > 2) {
+            dataTabValue = firstDataEntry[2]; // Value from Data tab
+        }
+        
+        // If no channels exist, create a default row
+        if (cfgs.isEmpty()) {
+            model.addRow(new Object[]{"Default Channel", 0, dataTabValue != null ? dataTabValue : "N/A", "N/A", ""});
+        } else {
+            for (int i = 0; i < cfgs.size(); i++) {
+                ChannelConfig c = cfgs.get(i);
+                Double r = raw.get(c.getChannelNumber());
+                Double o = out.get(c.getChannelNumber());
+                
+                // Use Data tab value for the first row, otherwise use runtime raw value
+                Object rawValue = (i == 0 && dataTabValue != null) ? dataTabValue : r;
+                
+                model.addRow(new Object[]{c.getChannelName(), c.getChannelAddress(), rawValue, o, c.getUnit()});
+            }
         }
     }
 

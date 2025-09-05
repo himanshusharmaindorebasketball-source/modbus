@@ -82,7 +82,7 @@ public class SettingsPage {
         // Device ID
         gbc.gridx = 0; gbc.gridy = row; gbc.weightx = 0.0;
         form.add(new JLabel("Device ID:"), gbc);
-        deviceIdField = new JTextField("1", 20);
+        deviceIdField = new JTextField("5", 20);
         gbc.gridx = 1; gbc.weightx = 1.0;
         form.add(deviceIdField, gbc);
         row++;
@@ -136,6 +136,11 @@ public class SettingsPage {
     private void saveSettings() {
         try {
             ModbusSettings settings = readSettingsFromForm();
+            
+            // Save settings to file
+            SettingsManager settingsManager = new SettingsManager();
+            settingsManager.saveSettings(settings);
+            
             if (onSettingsSaved != null) onSettingsSaved.accept(settings);
             JOptionPane.showMessageDialog(panel, "Settings saved.");
         } catch (NumberFormatException e) {
