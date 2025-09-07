@@ -15,14 +15,23 @@ public class ModbusConnectionManager {
         }
         
         close();
-        wrapper = new SimpleSerialPortWrapper();
-        wrapper.openPort(settings);
-        ModbusFactory factory = new ModbusFactory();
-        master = factory.createRtuMaster(wrapper);
-        master.setTimeout(2000);
-        master.setRetries(3);
-        master.init();
-        opened = true;
+        
+        try {
+            wrapper = new SimpleSerialPortWrapper();
+            wrapper.openPort(settings);
+            ModbusFactory factory = new ModbusFactory();
+            master = factory.createRtuMaster(wrapper);
+            // Increase timeout and retries for better reliability
+            master.setTimeout(3000);
+            master.setRetries(2);
+            master.init();
+            opened = true;
+            System.out.println("Modbus connection established successfully");
+        } catch (Exception e) {
+            System.err.println("Failed to establish Modbus connection: " + e.getMessage());
+            close(); // Clean up on failure
+            throw e;
+        }
     }
 
     public synchronized ModbusMaster getMaster() {

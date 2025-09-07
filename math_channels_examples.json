@@ -1,0 +1,98 @@
+[
+  {
+    "channelName": "Production Counter",
+    "expression": "if(30001 == 1, counter_inc(1), counter(1))",
+    "description": "Counts production cycles when input signal is high",
+    "unit": "cycles",
+    "decimalPlaces": 0,
+    "enabled": true
+  },
+  {
+    "channelName": "Cycle Timer",
+    "expression": "if(30001 == 1, timer_start(1), if(30001 == 0, timer_stop(1), timer(1)))",
+    "description": "Measures cycle time from start to stop signal",
+    "unit": "seconds",
+    "decimalPlaces": 2,
+    "enabled": true
+  },
+  {
+    "channelName": "Quality Control",
+    "expression": "if((30001 > 50) && (30001 < 100), counter_inc(2), if(30001 <= 50, counter_inc(3), counter_inc(4)))",
+    "description": "Counts good, low, and high quality parts",
+    "unit": "parts",
+    "decimalPlaces": 0,
+    "enabled": true
+  },
+  {
+    "channelName": "Temperature Alarm",
+    "expression": "if(30001 > 80, 1, 0)",
+    "description": "Alarm when temperature exceeds 80 degrees",
+    "unit": "",
+    "decimalPlaces": 0,
+    "enabled": true
+  },
+  {
+    "channelName": "Pressure Status",
+    "expression": "(30001 > 10) && (30001 < 50)",
+    "description": "Check if pressure is within normal range",
+    "unit": "",
+    "decimalPlaces": 0,
+    "enabled": true
+  },
+  {
+    "channelName": "System Health",
+    "expression": "if((30001 > 0) && (30002 > 0) && (30003 > 0), 1, 0)",
+    "description": "Overall system health check",
+    "unit": "",
+    "decimalPlaces": 0,
+    "enabled": true
+  },
+  {
+    "channelName": "Error Counter",
+    "expression": "if(30001 == 0, counter_inc(5), counter(5))",
+    "description": "Counts error conditions",
+    "unit": "errors",
+    "decimalPlaces": 0,
+    "enabled": true
+  },
+  {
+    "channelName": "Uptime Timer",
+    "expression": "if(30001 > 0, timer_start(2), timer_stop(2))",
+    "description": "Measures system uptime",
+    "unit": "seconds",
+    "decimalPlaces": 1,
+    "enabled": true
+  },
+  {
+    "channelName": "Average Temperature",
+    "expression": "if(counter(6) > 0, (30001 + 30002 + 30003) / 3, 0)",
+    "description": "Calculate average temperature when system is running",
+    "unit": "°C",
+    "decimalPlaces": 1,
+    "enabled": true
+  },
+  {
+    "channelName": "Production Rate",
+    "expression": "if(timer(3) > 0, counter(1) / timer(3), 0)",
+    "description": "Calculate production rate (cycles per second)",
+    "unit": "cycles/sec",
+    "decimalPlaces": 2,
+    "enabled": true
+  },
+  {
+    "channelName": "Conditional Reset",
+    "expression": "if(counter(1) > 1000, counter_reset(1) + timer_reset(1), counter(1))",
+    "description": "Reset counters when they reach 1000",
+    "unit": "",
+    "decimalPlaces": 0,
+    "enabled": true
+  },
+  {
+    "channelName": "Multi-Condition Logic",
+    "expression": "if((30001 > 50) || (30002 > 50), counter_inc(7), if((30001 < 20) && (30002 < 20), counter_inc(8), counter(7)))",
+    "description": "Complex multi-condition logic example",
+    "unit": "",
+    "decimalPlaces": 0,
+    "enabled": true
+  }
+]

@@ -1,0 +1,19 @@
+{
+  "enabled": true,
+  "logIntervalSeconds": 1,
+  "bufferSize": 190,
+  "logToFile": true,
+  "logToDatabase": false,
+  "logFormat": "JSON",
+  "includeCalculatedValues": true,
+  "channelsToLog": [
+    "Voltage R-N",
+    "Voltage Y-N",
+    "Voltage B-N",
+    "Voltage L-N",
+    "Energy Consumption"
+  ],
+  "databaseUrl": "",
+  "databaseUsername": "",
+  "databasePassword": ""
+}

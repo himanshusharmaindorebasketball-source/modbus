@@ -279,4 +279,12 @@ public class DataPage {
             SwingUtilities.invokeLater(dataChangeListener);
         }
     }
+    
+    public ModbusSettings getSettings() {
+        return settings;
+    }
+    
+    public ModbusMaster getModbusMaster() {
+        return connectionManager.getMaster();
+    }
 }

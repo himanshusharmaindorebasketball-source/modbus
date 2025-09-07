@@ -1,0 +1,15 @@
+{
+  "enabled": true,
+  "dataLogIntervalSeconds": 1,
+  "bufferSize": 50,
+  "logToFile": true,
+  "logFormat": "JSON",
+  "logApplicationEvents": true,
+  "logModbusEvents": true,
+  "logSettingsChanges": true,
+  "logDataValues": true,
+  "logErrors": true,
+  "logWarnings": true,
+  "logInfo": true,
+  "logDebug": false
+}

@@ -10,6 +10,14 @@ import com.serotonin.modbus4j.msg.ReadHoldingRegistersRequest;
 import com.serotonin.modbus4j.msg.ReadHoldingRegistersResponse;
 import com.serotonin.modbus4j.msg.ReadInputRegistersRequest;
 import com.serotonin.modbus4j.msg.ReadInputRegistersResponse;
+import com.serotonin.modbus4j.msg.WriteCoilRequest;
+import com.serotonin.modbus4j.msg.WriteCoilResponse;
+import com.serotonin.modbus4j.msg.WriteCoilsRequest;
+import com.serotonin.modbus4j.msg.WriteCoilsResponse;
+import com.serotonin.modbus4j.msg.WriteRegisterRequest;
+import com.serotonin.modbus4j.msg.WriteRegisterResponse;
+import com.serotonin.modbus4j.msg.WriteRegistersRequest;
+import com.serotonin.modbus4j.msg.WriteRegistersResponse;
 
 import javax.swing.SwingUtilities;
 import java.util.*;
@@ -54,6 +62,14 @@ public class ChannelRuntimeService {
             for (ChannelConfig ch : channels) {
             try {
                 if (master == null) break; // Check if master is still valid
+                
+                // Skip channels with invalid channel numbers
+                int channelNumber = ch.getChannelNumber();
+                if (channelNumber <= 0) {
+                    System.out.println("Skipping channel with invalid channel number: " + channelNumber);
+                    continue;
+                }
+                
                 int deviceId = ch.getDeviceId();
                 int address = ch.getChannelAddress();
                 // Support 1xxxx/3xxxx/4xxxx style addressing
@@ -66,20 +82,20 @@ public class ChannelRuntimeService {
                     short[] data = resp.getShortData();
                     double val = extractValue(data, ch.getDataType());
                     val = val + ch.getOffset();
-                    rawValues.put(ch.getChannelNumber(), val);
+                    rawValues.put(channelNumber, val);
                 } else if (address >= 30001 && address < 40000) {
                     int zero = address - 30001; // FC4 Input
                     ReadInputRegistersRequest req = new ReadInputRegistersRequest(deviceId, zero, count);
                     ReadInputRegistersResponse resp = (ReadInputRegistersResponse) master.send(req);
                     if (resp.isException()) {
-                        System.out.println("Exception reading channel " + ch.getChannelNumber() + " at " + address + ": " + resp.getExceptionMessage());
+                        System.out.println("Exception reading channel " + channelNumber + " at " + address + ": " + resp.getExceptionMessage());
                         continue;
                     }
                     short[] data = resp.getShortData();
                     double val = extractValue(data, ch.getDataType());
                     val = val + ch.getOffset();
-                    rawValues.put(ch.getChannelNumber(), val);
-                    System.out.println("Channel " + ch.getChannelNumber() + " (" + ch.getChannelName() + ") = " + val);
+                    rawValues.put(channelNumber, val);
+                    System.out.println("Channel " + channelNumber + " (" + ch.getChannelName() + ") = " + val);
                 } else if (address >= 10001 && address < 20000) {
                     int zero = address - 10001; // FC2 Discrete Inputs (boolean)
                     ReadDiscreteInputsRequest req = new ReadDiscreteInputsRequest(deviceId, zero, 1);
@@ -87,7 +103,7 @@ public class ChannelRuntimeService {
                     if (resp.isException()) continue;
                     boolean[] data = resp.getBooleanData();
                     double val = (data != null && data.length > 0 && data[0]) ? 1.0 : 0.0;
-                    rawValues.put(ch.getChannelNumber(), val);
+                    rawValues.put(channelNumber, val);
                 } else if (address >= 1 && address < 10000) {
                     int zero = address - 1; // FC1 Coils
                     ReadCoilsRequest req = new ReadCoilsRequest(deviceId, zero, 1);
@@ -95,7 +111,7 @@ public class ChannelRuntimeService {
                     if (resp.isException()) continue;
                     boolean[] data = resp.getBooleanData();
                     double val = (data != null && data.length > 0 && data[0]) ? 1.0 : 0.0;
-                    rawValues.put(ch.getChannelNumber(), val);
+                    rawValues.put(channelNumber, val);
                 } else {
                     // Treat as raw zero-based holding register address
                     int zero = address;
@@ -105,7 +121,7 @@ public class ChannelRuntimeService {
                     short[] data = resp.getShortData();
                     double val = extractValue(data, ch.getDataType());
                     val = val + ch.getOffset();
-                    rawValues.put(ch.getChannelNumber(), val);
+                    rawValues.put(channelNumber, val);
                 }
             } catch (ModbusTransportException ignored) {}
             }
@@ -135,7 +151,10 @@ public class ChannelRuntimeService {
         Map<String, Double> vars = new HashMap<>();
         for (Map.Entry<Integer, Double> e : rawValues.entrySet()) vars.put("CH" + e.getKey(), e.getValue());
         for (ChannelConfig ch : channels) {
-            double x = rawValues.getOrDefault(ch.getChannelNumber(), Double.NaN);
+            int channelNumber = ch.getChannelNumber();
+            if (channelNumber <= 0) continue; // Skip invalid channel numbers
+            
+            double x = rawValues.getOrDefault(channelNumber, Double.NaN);
             vars.put("x", x);
             String expr = ch.getChannelMaths();
             double out = evaluator.evaluate(expr, vars);
@@ -143,7 +162,7 @@ public class ChannelRuntimeService {
                 out = Math.max(ch.getLow(), Math.min(ch.getHigh(), out));
                 out = round(out, ch.getMaxDecimalDigits());
             }
-            computedValues.put(ch.getChannelNumber(), out);
+            computedValues.put(channelNumber, out);
         }
     }
 
@@ -154,6 +173,103 @@ public class ChannelRuntimeService {
 
     public void addListener(Runnable r) { listeners.add(r); }
     private void notifyListeners() { SwingUtilities.invokeLater(() -> { for (Runnable r : listeners) r.run(); }); }
+
+    /**
+     * Write a value to a Modbus register
+     */
+    public boolean writeValue(int deviceId, int address, Object value, String dataType) {
+        if (master == null) {
+            System.err.println("Modbus master is not available for writing");
+            return false;
+        }
+        
+        try {
+            if (address >= 40001 && address < 50000) {
+                // Holding Registers (4xxxx) - FC06/FC16
+                return writeHoldingRegister(deviceId, address, value, dataType);
+            } else if (address >= 1 && address < 10000) {
+                // Coils (0xxxx) - FC05/FC15
+                return writeCoil(deviceId, address, value);
+            } else {
+                System.err.println("Cannot write to read-only register address: " + address);
+                return false;
+            }
+        } catch (Exception e) {
+            System.err.println("Error writing to register " + address + ": " + e.getMessage());
+            return false;
+        }
+    }
+    
+    /**
+     * Write to Holding Register (4xxxx)
+     */
+    private boolean writeHoldingRegister(int deviceId, int address, Object value, String dataType) throws ModbusTransportException {
+        int zeroBasedAddress = address - 40001;
+        
+        if ("Float32".equalsIgnoreCase(dataType)) {
+            // Write Float32 (2 registers)
+            if (value instanceof Number) {
+                float floatValue = ((Number) value).floatValue();
+                int intBits = Float.floatToIntBits(floatValue);
+                short high = (short) (intBits >> 16);
+                short low = (short) (intBits & 0xFFFF);
+                
+                WriteRegistersRequest req = new WriteRegistersRequest(deviceId, zeroBasedAddress, new short[]{high, low});
+                WriteRegistersResponse resp = (WriteRegistersResponse) master.send(req);
+                if (resp.isException()) {
+                    System.err.println("Exception writing Float32 to register " + address + ": " + resp.getExceptionMessage());
+                    return false;
+                }
+                System.out.println("Successfully wrote Float32 value " + floatValue + " to register " + address);
+                return true;
+            }
+        } else {
+            // Write single register (Int16, UInt16)
+            if (value instanceof Number) {
+                short shortValue = ((Number) value).shortValue();
+                WriteRegisterRequest req = new WriteRegisterRequest(deviceId, zeroBasedAddress, shortValue);
+                WriteRegisterResponse resp = (WriteRegisterResponse) master.send(req);
+                if (resp.isException()) {
+                    System.err.println("Exception writing to register " + address + ": " + resp.getExceptionMessage());
+                    return false;
+                }
+                System.out.println("Successfully wrote value " + shortValue + " to register " + address);
+                return true;
+            }
+        }
+        
+        System.err.println("Invalid value type for register write: " + value.getClass().getSimpleName());
+        return false;
+    }
+    
+    /**
+     * Write to Coil (0xxxx)
+     */
+    private boolean writeCoil(int deviceId, int address, Object value) throws ModbusTransportException {
+        int zeroBasedAddress = address - 1;
+        boolean coilValue;
+        
+        if (value instanceof Boolean) {
+            coilValue = (Boolean) value;
+        } else if (value instanceof Number) {
+            coilValue = ((Number) value).doubleValue() != 0.0;
+        } else if (value instanceof String) {
+            String strValue = ((String) value).toLowerCase();
+            coilValue = "true".equals(strValue) || "1".equals(strValue) || "on".equals(strValue);
+        } else {
+            System.err.println("Invalid value type for coil write: " + value.getClass().getSimpleName());
+            return false;
+        }
+        
+        WriteCoilRequest req = new WriteCoilRequest(deviceId, zeroBasedAddress, coilValue);
+        WriteCoilResponse resp = (WriteCoilResponse) master.send(req);
+        if (resp.isException()) {
+            System.err.println("Exception writing to coil " + address + ": " + resp.getExceptionMessage());
+            return false;
+        }
+        System.out.println("Successfully wrote coil value " + coilValue + " to coil " + address);
+        return true;
+    }
 
     public void shutdown() { timer.cancel(); if (ownsMaster && master != null) { try { master.destroy(); } catch (Exception ignored) {} } }
 }

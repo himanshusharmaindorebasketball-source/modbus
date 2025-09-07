@@ -2,36 +2,56 @@
   {
     "slaveId": 5,
     "address": 30001,
-    "length": 2
+    "length": 2,
+    "dataType": "Float32 (BADC)",
+    "channelName": "Voltage R-N"
   },
   {
     "slaveId": 5,
     "address": 30003,
-    "length": 2
+    "length": 2,
+    "dataType": "Float32 (BADC)",
+    "channelName": "Voltage Y-N"
   },
   {
     "slaveId": 5,
     "address": 30005,
-    "length": 2
+    "length": 2,
+    "dataType": "Float32 (BADC)",
+    "channelName": "Voltage B-N"
   },
   {
     "slaveId": 5,
     "address": 30007,
-    "length": 2
+    "length": 2,
+    "dataType": "Float32 (BADC)",
+    "channelName": "Voltage L-N"
   },
   {
     "slaveId": 5,
     "address": 30009,
-    "length": 2
+    "length": 2,
+    "channelName": "Channel_30009"
   },
   {
     "slaveId": 5,
-    "address": 30011,
-    "length": 20
+    "address": 40001,
+    "length": 1,
+    "dataType": "Int16",
+    "channelName": "Channel_40001"
   },
   {
     "slaveId": 5,
-    "address": 30056,
-    "length": 20
+    "address": 30010,
+    "length": 2,
+    "dataType": "Float32 (BADC)",
+    "channelName": "test"
+  },
+  {
+    "slaveId": 5,
+    "address": 30097,
+    "length": 2,
+    "dataType": "Float32 (BADC)",
+    "channelName": "Energy Consumption"
   }
 ]

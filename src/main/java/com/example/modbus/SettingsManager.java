@@ -38,7 +38,7 @@ public class SettingsManager {
                 parityStr = "None";
         }
         json.put("parity", parityStr);
-        json.put("deviceId", settings.getDeviceId());
+        // Device ID is no longer stored in settings - it's configured per register
 
         try {
             Files.writeString(Paths.get(SETTINGS_FILE), json.toString());
@@ -80,7 +80,7 @@ public class SettingsManager {
                         parity = SerialPort.NO_PARITY;
                 }
                 settings.setParity(parity);
-                settings.setDeviceId(json.getInt("deviceId"));
+                // Device ID is no longer loaded from settings - it's configured per register
             }
         } catch (IOException e) {
             System.err.println("Error loading settings: " + e.getMessage());

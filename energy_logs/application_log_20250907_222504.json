@@ -1,0 +1,8 @@
+{"timestamp":"2025-09-07 22:25:04.134","date":"2025-09-07","time":"22:25:04.134","eventType":"APPLICATION_START","message":"Application started successfully","data":{"uptime_seconds":0},"level":"INFO"}
+{"timestamp":"2025-09-07 22:25:04.139","date":"2025-09-07","time":"22:25:04.139","eventType":"APPLICATION_START","message":"ModbusGUI application starting","data":{"uptime_seconds":0},"level":"INFO"}
+{"timestamp":"2025-09-07 22:25:04.166","date":"2025-09-07","time":"22:25:04.166","eventType":"SETTINGS_LOADED","message":"Modbus settings loaded from file","data":{"uptime_seconds":0},"level":"INFO"}
+{"timestamp":"2025-09-07 22:25:04.181","date":"2025-09-07","time":"22:25:04.181","eventType":"MATH_CHANNELS_LOADED","message":"Math channel configurations loaded","data":{"uptime_seconds":0},"level":"INFO"}
+{"timestamp":"2025-09-07 22:25:04.543","date":"2025-09-07","time":"22:25:04.543","eventType":"UI_PAGES_CREATED","message":"Data and Filter pages created","data":{"uptime_seconds":0},"level":"INFO"}
+{"timestamp":"2025-09-07 22:25:04.763","date":"2025-09-07","time":"22:25:04.763","eventType":"MODBUS_CONNECTION_PENDING","message":"Modbus connection not yet established","data":{"port":"COM7","uptime_seconds":0},"level":"WARNING"}
+{"timestamp":"2025-09-07 22:25:30.462","date":"2025-09-07","time":"22:25:30.462","eventType":"APPLICATION_SHUTDOWN","message":"Application shutting down","data":{"uptime_seconds":26},"level":"INFO"}
+{"timestamp":"2025-09-07 22:25:30.462","date":"2025-09-07","time":"22:25:30.463","eventType":"APPLICATION_STOP","message":"Application shutting down","data":{"uptime_seconds":26},"level":"INFO"}

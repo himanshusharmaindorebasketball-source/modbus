@@ -12,7 +12,6 @@ public class SettingsPage {
     private JTextField dataBitsField;
     private JTextField stopBitsField;
     private JComboBox<String> parityComboBox;
-    private JTextField deviceIdField;
     private JButton saveButton;
     private JButton connectButton;
     private Consumer<ModbusSettings> onSettingsSaved;
@@ -79,13 +78,6 @@ public class SettingsPage {
         form.add(parityComboBox, gbc);
         row++;
 
-        // Device ID
-        gbc.gridx = 0; gbc.gridy = row; gbc.weightx = 0.0;
-        form.add(new JLabel("Device ID:"), gbc);
-        deviceIdField = new JTextField("5", 20);
-        gbc.gridx = 1; gbc.weightx = 1.0;
-        form.add(deviceIdField, gbc);
-        row++;
 
         // Buttons row
         JPanel buttons = new JPanel(new FlowLayout(FlowLayout.RIGHT));
@@ -107,7 +99,6 @@ public class SettingsPage {
             dataBitsField.setText(String.valueOf(settings.getDataBits()));
             stopBitsField.setText(String.valueOf(settings.getStopBits()));
             parityComboBox.setSelectedIndex(getParityIndex(settings.getParity()));
-            deviceIdField.setText(String.valueOf(settings.getDeviceId()));
         }
     }
 
@@ -129,7 +120,7 @@ public class SettingsPage {
         settings.setParity(parityStr.equals("Even") ? com.fazecast.jSerialComm.SerialPort.EVEN_PARITY :
                 parityStr.equals("Odd") ? com.fazecast.jSerialComm.SerialPort.ODD_PARITY :
                         com.fazecast.jSerialComm.SerialPort.NO_PARITY);
-        settings.setDeviceId(Integer.parseInt(deviceIdField.getText().trim()));
+        // Device ID is no longer needed - it's configured per register in the config page
         return settings;
     }
 

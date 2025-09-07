@@ -14,13 +14,35 @@ public class ModbusConfigUI extends JDialog {
     private JTable configTable;
     private JTextField slaveIdField;
     private JTextField addressField;
-    private JTextField lengthField;
+    private JComboBox<String> dataTypeCombo;
+    private JTextField channelNameField;
+    private JLabel lengthInfoLabel;
     
     public ModbusConfigUI(Frame parent) {
         super(parent, "Modbus Configuration", true);
         this.configs = new ArrayList<>(ModbusConfigManager.loadConfig());
         initializeUI();
         loadDataToTable();
+    }
+    
+    private int getLengthForDataType(String dataType) {
+        switch (dataType) {
+            case "Int16":
+            case "UInt16":
+                return 1; // 1 register (16 bits)
+            case "Float32 (ABCD)":
+            case "Float32 (BADC)":
+                return 2; // 2 registers (32 bits)
+            default:
+                return 1; // Default fallback
+        }
+    }
+    
+    private void updateLengthInfo() {
+        String dataType = (String) dataTypeCombo.getSelectedItem();
+        int length = getLengthForDataType(dataType);
+        String unit = length == 1 ? "register" : "registers";
+        lengthInfoLabel.setText(length + " " + unit + " (auto)");
     }
     
     private void initializeUI() {
@@ -49,12 +71,28 @@ public class ModbusConfigUI extends JDialog {
         gbc.gridx = 3;
         inputPanel.add(addressField, gbc);
         
-        // Length
-        gbc.gridx = 4;
+        // Data Type
+        gbc.gridx = 0; gbc.gridy = 1;
+        inputPanel.add(new JLabel("Data Type:"), gbc);
+        dataTypeCombo = new JComboBox<>(new String[]{"Int16", "UInt16", "Float32 (ABCD)", "Float32 (BADC)"});
+        dataTypeCombo.setSelectedItem("Float32 (ABCD)");
+        dataTypeCombo.addActionListener(e -> updateLengthInfo());
+        gbc.gridx = 1; gbc.gridwidth = 2;
+        inputPanel.add(dataTypeCombo, gbc);
+        
+        // Length Info Label
+        gbc.gridx = 3; gbc.gridwidth = 1;
         inputPanel.add(new JLabel("Length:"), gbc);
-        lengthField = new JTextField(6);
-        gbc.gridx = 5;
-        inputPanel.add(lengthField, gbc);
+        lengthInfoLabel = new JLabel("2 registers (auto)");
+        gbc.gridx = 4; gbc.gridwidth = 2;
+        inputPanel.add(lengthInfoLabel, gbc);
+        
+        // Channel Name
+        gbc.gridx = 0; gbc.gridy = 2;
+        inputPanel.add(new JLabel("Channel Name:"), gbc);
+        channelNameField = new JTextField(15);
+        gbc.gridx = 1; gbc.gridwidth = 2;
+        inputPanel.add(channelNameField, gbc);
         
         // Buttons
         JPanel buttonPanel = new JPanel(new FlowLayout());
@@ -73,13 +111,13 @@ public class ModbusConfigUI extends JDialog {
         buttonPanel.add(deleteButton);
         buttonPanel.add(clearButton);
         
-        gbc.gridx = 0; gbc.gridy = 1; gbc.gridwidth = 6;
+        gbc.gridx = 0; gbc.gridy = 3; gbc.gridwidth = 6;
         inputPanel.add(buttonPanel, gbc);
         
         add(inputPanel, BorderLayout.NORTH);
         
         // Table
-        String[] columnNames = {"Slave ID", "Address", "Length"};
+        String[] columnNames = {"Slave ID", "Address", "Data Type", "Channel Name"};
         tableModel = new DefaultTableModel(columnNames, 0) {
             @Override
             public boolean isCellEditable(int row, int column) {
@@ -125,9 +163,18 @@ public class ModbusConfigUI extends JDialog {
         try {
             int slaveId = Integer.parseInt(slaveIdField.getText().trim());
             int address = Integer.parseInt(addressField.getText().trim());
-            int length = Integer.parseInt(lengthField.getText().trim());
+            String dataType = (String) dataTypeCombo.getSelectedItem();
+            String channelName = channelNameField.getText().trim();
             
-            ModbusConfigManager.ModbusConfig config = new ModbusConfigManager.ModbusConfig(slaveId, address, length);
+            // Auto-calculate length based on data type
+            int length = getLengthForDataType(dataType);
+            
+            // Use default channel name if empty
+            if (channelName.isEmpty()) {
+                channelName = "Channel_" + address;
+            }
+            
+            ModbusConfigManager.ModbusConfig config = new ModbusConfigManager.ModbusConfig(slaveId, address, length, dataType, channelName);
             configs.add(config);
             loadDataToTable();
             clearFields();
@@ -146,9 +193,18 @@ public class ModbusConfigUI extends JDialog {
         try {
             int slaveId = Integer.parseInt(slaveIdField.getText().trim());
             int address = Integer.parseInt(addressField.getText().trim());
-            int length = Integer.parseInt(lengthField.getText().trim());
+            String dataType = (String) dataTypeCombo.getSelectedItem();
+            String channelName = channelNameField.getText().trim();
             
-            ModbusConfigManager.ModbusConfig config = new ModbusConfigManager.ModbusConfig(slaveId, address, length);
+            // Auto-calculate length based on data type
+            int length = getLengthForDataType(dataType);
+            
+            // Use default channel name if empty
+            if (channelName.isEmpty()) {
+                channelName = "Channel_" + address;
+            }
+            
+            ModbusConfigManager.ModbusConfig config = new ModbusConfigManager.ModbusConfig(slaveId, address, length, dataType, channelName);
             configs.set(selectedRow, config);
             loadDataToTable();
             clearFields();
@@ -176,7 +232,9 @@ public class ModbusConfigUI extends JDialog {
     private void clearFields() {
         slaveIdField.setText("");
         addressField.setText("");
-        lengthField.setText("");
+        dataTypeCombo.setSelectedItem("Float32 (ABCD)");
+        channelNameField.setText("");
+        updateLengthInfo(); // Update the length info display
     }
     
     private void loadSelectedToFields() {
@@ -185,7 +243,9 @@ public class ModbusConfigUI extends JDialog {
             ModbusConfigManager.ModbusConfig config = configs.get(selectedRow);
             slaveIdField.setText(String.valueOf(config.getSlaveId()));
             addressField.setText(String.valueOf(config.getAddress()));
-            lengthField.setText(String.valueOf(config.getLength()));
+            dataTypeCombo.setSelectedItem(config.getDataType());
+            channelNameField.setText(config.getChannelName());
+            updateLengthInfo(); // Update the length info display
         }
     }
     
@@ -195,7 +255,8 @@ public class ModbusConfigUI extends JDialog {
             tableModel.addRow(new Object[]{
                 config.getSlaveId(),
                 config.getAddress(),
-                config.getLength()
+                config.getDataType(),
+                config.getChannelName()
             });
         }
     }

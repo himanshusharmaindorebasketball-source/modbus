@@ -24,8 +24,10 @@ public class ChannelConfigPage {
     private JComboBox<String> channelColorComboBox;
     private JTextField channelMathsField;
     private JTextField unitField;
+    private JTextField writeValueField;
     private JButton saveButton;
     private JButton addNewChannelButton;
+    private JButton writeButton;
     private static List<ChannelConfig> channelConfigs = new ArrayList<>();
     private DataPage dataPage;
 
@@ -149,19 +151,34 @@ public class ChannelConfigPage {
         gbc.gridx = 1;
         panel.add(unitField, gbc);
 
+        // Write Value (for writable registers)
+        gbc.gridx = 0;
+        gbc.gridy = 13;
+        panel.add(new JLabel("Write Value:"), gbc);
+        writeValueField = new JTextField("0", 10);
+        gbc.gridx = 1;
+        panel.add(writeValueField, gbc);
+
         // Add New Channel Button
         addNewChannelButton = new JButton("Add New Channel");
         gbc.gridx = 0;
-        gbc.gridy = 13;
+        gbc.gridy = 14;
         gbc.gridwidth = 1;
         panel.add(addNewChannelButton, gbc);
 
         // Save Button
         saveButton = new JButton("Save Channel");
         gbc.gridx = 1;
-        gbc.gridy = 13;
+        gbc.gridy = 14;
         gbc.gridwidth = 1;
         panel.add(saveButton, gbc);
+
+        // Write Button
+        writeButton = new JButton("Write to Register");
+        gbc.gridx = 0;
+        gbc.gridy = 15;
+        gbc.gridwidth = 2;
+        panel.add(writeButton, gbc);
 
         // Add New Channel Action
         addNewChannelButton.addActionListener(new ActionListener() {
@@ -169,7 +186,7 @@ public class ChannelConfigPage {
             public void actionPerformed(ActionEvent e) {
                 channelNumberComboBox.setSelectedIndex(0); // Select placeholder
                 channelNameField.setText("Channel" + (channelConfigs.size() + 1));
-                channelAddressField.setText("3000");
+                channelAddressField.setText("40001"); // Default to writable register
                 dataTypeComboBox.setSelectedItem("Float32");
                 deviceIdField.setText("1");
                 valueField.setText("0.0");
@@ -180,6 +197,7 @@ public class ChannelConfigPage {
                 channelColorComboBox.setSelectedItem("Red");
                 channelMathsField.setText("x");
                 unitField.setText("°C");
+                writeValueField.setText("0");
             }
         });
 
@@ -271,6 +289,82 @@ public class ChannelConfigPage {
                 }
             }
         });
+
+        // Write Action
+        writeButton.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                try {
+                    int deviceId = Integer.parseInt(deviceIdField.getText());
+                    int address = Integer.parseInt(channelAddressField.getText());
+                    String dataType = (String) dataTypeComboBox.getSelectedItem();
+                    String writeValueStr = writeValueField.getText().trim();
+                    
+                    if (writeValueStr.isEmpty()) {
+                        JOptionPane.showMessageDialog(panel, "Please enter a value to write.");
+                        return;
+                    }
+                    
+                    // Check if address is writable
+                    if (address < 1 || (address >= 10001 && address < 40001) || address >= 50000) {
+                        JOptionPane.showMessageDialog(panel, "Cannot write to read-only register address: " + address + 
+                            "\nWritable addresses: 1-10000 (Coils) or 40001-49999 (Holding Registers)");
+                        return;
+                    }
+                    
+                    // Get the ModbusMaster from DataPage
+                    if (dataPage == null) {
+                        JOptionPane.showMessageDialog(panel, "DataPage not available for Modbus communication.");
+                        return;
+                    }
+                    
+                    // Create a temporary ChannelRuntimeService for writing
+                    ChannelRuntimeService writeService = new ChannelRuntimeService(dataPage.getSettings(), dataPage.getModbusMaster());
+                    
+                    Object writeValue;
+                    if (address >= 1 && address < 10000) {
+                        // Coil - convert to boolean
+                        String lowerValue = writeValueStr.toLowerCase();
+                        if ("true".equals(lowerValue) || "1".equals(lowerValue) || "on".equals(lowerValue)) {
+                            writeValue = true;
+                        } else if ("false".equals(lowerValue) || "0".equals(lowerValue) || "off".equals(lowerValue)) {
+                            writeValue = false;
+                        } else {
+                            JOptionPane.showMessageDialog(panel, "For coils, enter: true/false, 1/0, or on/off");
+                            return;
+                        }
+                    } else {
+                        // Holding Register - convert to number
+                        try {
+                            if ("Float32".equalsIgnoreCase(dataType)) {
+                                writeValue = Float.parseFloat(writeValueStr);
+                            } else {
+                                writeValue = Short.parseShort(writeValueStr);
+                            }
+                        } catch (NumberFormatException ex) {
+                            JOptionPane.showMessageDialog(panel, "Please enter a valid number for register write.");
+                            return;
+                        }
+                    }
+                    
+                    // Perform the write operation
+                    boolean success = writeService.writeValue(deviceId, address, writeValue, dataType);
+                    
+                    if (success) {
+                        JOptionPane.showMessageDialog(panel, "Successfully wrote value " + writeValue + 
+                            " to register " + address + " on device " + deviceId);
+                    } else {
+                        JOptionPane.showMessageDialog(panel, "Failed to write value to register " + address + 
+                            " on device " + deviceId + "\nCheck console for error details.");
+                    }
+                    
+                } catch (NumberFormatException ex) {
+                    JOptionPane.showMessageDialog(panel, "Please enter valid numeric values for Device ID and Address.");
+                } catch (Exception ex) {
+                    JOptionPane.showMessageDialog(panel, "Error during write operation: " + ex.getMessage());
+                }
+            }
+        });
     }
 
     private void updateChannelNumberComboBox() {
@@ -300,6 +394,7 @@ public class ChannelConfigPage {
                 channelColorComboBox.setSelectedItem(getColorName(config.getChannelColor()));
                 channelMathsField.setText(config.getChannelMaths());
                 unitField.setText(config.getUnit());
+                writeValueField.setText("0"); // Reset write value
                 break;
             }
         }

@@ -1,0 +1,10 @@
+{"timestamp":"2025-09-07 22:00:37.900","date":"2025-09-07","time":"22:00:37.900","eventType":"APPLICATION_START","message":"Application started successfully","data":{"uptime_seconds":0},"level":"INFO"}
+{"timestamp":"2025-09-07 22:00:37.916","date":"2025-09-07","time":"22:00:37.916","eventType":"APPLICATION_START","message":"ModbusGUI application starting","data":{"uptime_seconds":0},"level":"INFO"}
+{"timestamp":"2025-09-07 22:00:37.928","date":"2025-09-07","time":"22:00:37.928","eventType":"SETTINGS_LOADED","message":"Modbus settings loaded from file","data":{"uptime_seconds":0},"level":"INFO"}
+{"timestamp":"2025-09-07 22:00:37.938","date":"2025-09-07","time":"22:00:37.938","eventType":"MATH_CHANNELS_LOADED","message":"Math channel configurations loaded","data":{"uptime_seconds":0},"level":"INFO"}
+{"timestamp":"2025-09-07 22:00:38.268","date":"2025-09-07","time":"22:00:38.268","eventType":"UI_PAGES_CREATED","message":"Data and Filter pages created","data":{"uptime_seconds":0},"level":"INFO"}
+{"timestamp":"2025-09-07 22:00:38.410","date":"2025-09-07","time":"22:00:38.410","eventType":"MODBUS_CONNECTION_PENDING","message":"Modbus connection not yet established","data":{"port":"COM7","uptime_seconds":0},"level":"WARNING"}
+{"timestamp":"2025-09-07 22:00:44.962","date":"2025-09-07","time":"22:00:44.962","eventType":"MODBUS_CONNECTION_ESTABLISHED","message":"Connected to COM7","data":{"port":"COM7","uptime_seconds":7,"baud_rate":9600},"level":"INFO"}
+{"timestamp":"2025-09-07 22:00:46.646","date":"2025-09-07","time":"22:00:46.646","eventType":"PAGES_RECREATED","message":"Data pages recreated after connection","data":{"uptime_seconds":8},"level":"INFO"}
+{"timestamp":"2025-09-07 22:01:33.571","date":"2025-09-07","time":"22:01:33.573","eventType":"APPLICATION_SHUTDOWN","message":"Application shutting down","data":{"uptime_seconds":55},"level":"INFO"}
+{"timestamp":"2025-09-07 22:01:33.681","date":"2025-09-07","time":"22:01:33.681","eventType":"APPLICATION_STOP","message":"Application shutting down","data":{"uptime_seconds":55},"level":"INFO"}

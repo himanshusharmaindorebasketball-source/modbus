@@ -1,0 +1,26 @@
+[
+  {
+    "channelName": "test-3",
+    "expression": "(((30001)*2+(2*4+1000))/1000)*30003",
+    "description": "",
+    "unit": "",
+    "decimalPlaces": 2,
+    "enabled": true
+  },
+  {
+    "channelName": "Test2",
+    "expression": "pi",
+    "description": "test",
+    "unit": "",
+    "decimalPlaces": 2,
+    "enabled": true
+  },
+  {
+    "channelName": "Test 4",
+    "expression": "counter(1)+counter_inc(1)",
+    "description": "",
+    "unit": "",
+    "decimalPlaces": 2,
+    "enabled": true
+  }
+]

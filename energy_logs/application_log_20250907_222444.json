@@ -1,0 +1,2 @@
+{"timestamp":"2025-09-07 22:24:44.180","date":"2025-09-07","time":"22:24:44.180","eventType":"APPLICATION_START","message":"Application started successfully","data":{"uptime_seconds":0},"level":"INFO"}
+{"timestamp":"2025-09-07 22:24:44.191","date":"2025-09-07","time":"22:24:44.191","eventType":"EXPORT_TEST","message":"Testing export functionality","data":{"uptime_seconds":0},"level":"INFO"}

@@ -17,6 +17,8 @@ public class ModbusConfigManager {
         private int slaveId;
         private int address;
         private int length;
+        private String dataType;
+        private String channelName;
         
         public ModbusConfig() {}
         
@@ -24,6 +26,24 @@ public class ModbusConfigManager {
             this.slaveId = slaveId;
             this.address = address;
             this.length = length;
+            this.dataType = "Float32 (ABCD)"; // Default data type
+            this.channelName = "Channel_" + address; // Default channel name
+        }
+        
+        public ModbusConfig(int slaveId, int address, int length, String dataType) {
+            this.slaveId = slaveId;
+            this.address = address;
+            this.length = length;
+            this.dataType = dataType;
+            this.channelName = "Channel_" + address; // Default channel name
+        }
+        
+        public ModbusConfig(int slaveId, int address, int length, String dataType, String channelName) {
+            this.slaveId = slaveId;
+            this.address = address;
+            this.length = length;
+            this.dataType = dataType;
+            this.channelName = channelName;
         }
         
         // Getters and setters
@@ -36,9 +56,15 @@ public class ModbusConfigManager {
         public int getLength() { return length; }
         public void setLength(int length) { this.length = length; }
         
+        public String getDataType() { return dataType; }
+        public void setDataType(String dataType) { this.dataType = dataType; }
+        
+        public String getChannelName() { return channelName; }
+        public void setChannelName(String channelName) { this.channelName = channelName; }
+        
         @Override
         public String toString() {
-            return String.format("Slave: %d, Address: %d, Length: %d", slaveId, address, length);
+            return String.format("Slave: %d, Address: %d, Length: %d, DataType: %s, Channel: %s", slaveId, address, length, dataType, channelName);
         }
     }
     
@@ -61,6 +87,14 @@ public class ModbusConfigManager {
         try (FileReader reader = new FileReader(CONFIG_FILE)) {
             Type listType = new TypeToken<List<ModbusConfig>>(){}.getType();
             List<ModbusConfig> configs = gson.fromJson(reader, listType);
+            
+            // Ensure all configs have valid channel names
+            for (ModbusConfig config : configs) {
+                if (config.getChannelName() == null || config.getChannelName().trim().isEmpty()) {
+                    config.setChannelName("Channel_" + config.getAddress());
+                }
+            }
+            
             System.out.println("Modbus configuration loaded from " + CONFIG_FILE);
             return configs;
         } catch (IOException e) {
@@ -88,6 +122,22 @@ public class ModbusConfigManager {
             array[i][2] = config.getLength();
         }
         return array;
+    }
+    
+    public static String[] getDataTypes(List<ModbusConfig> configs) {
+        String[] dataTypes = new String[configs.size()];
+        for (int i = 0; i < configs.size(); i++) {
+            dataTypes[i] = configs.get(i).getDataType();
+        }
+        return dataTypes;
+    }
+    
+    public static String[] getChannelNames(List<ModbusConfig> configs) {
+        String[] channelNames = new String[configs.size()];
+        for (int i = 0; i < configs.size(); i++) {
+            channelNames[i] = configs.get(i).getChannelName();
+        }
+        return channelNames;
     }
     
     public static List<ModbusConfig> convertFromArray(int[][] array) {
