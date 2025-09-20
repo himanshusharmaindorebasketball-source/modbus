@@ -1,7 +1,7 @@
 [
   {
     "channelName": "test-3",
-    "expression": "(((30001)*2+(2*4+1000))/1000)*30003",
+    "expression": "Channel_40001*2000",
     "description": "",
     "unit": "",
     "decimalPlaces": 2,
@@ -21,6 +21,14 @@
     "description": "",
     "unit": "",
     "decimalPlaces": 2,
+    "enabled": true
+  },
+  {
+    "channelName": "Energy_Consumption_Progress",
+    "expression": "Energy_Consumption-500",
+    "description": "Live energy consumption progress percentage",
+    "unit": "%",
+    "decimalPlaces": 1,
     "enabled": true
   }
 ]

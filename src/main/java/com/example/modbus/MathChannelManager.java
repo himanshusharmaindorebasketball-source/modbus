@@ -50,6 +50,14 @@ public class MathChannelManager {
     }
     
     /**
+     * Clear math channel cache to force reload
+     */
+    public static void clearCache() {
+        mathChannels = new ArrayList<>();
+        System.out.println("Math channel cache cleared");
+    }
+    
+    /**
      * Save math channel configurations to file
      */
     public static void saveConfigs() {

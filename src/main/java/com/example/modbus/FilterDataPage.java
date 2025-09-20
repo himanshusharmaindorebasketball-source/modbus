@@ -34,6 +34,7 @@ public class FilterDataPage {
     private final ModbusSettings settings;
     private final ModbusConnectionManager connectionManager;
     private Runnable dataChangeListener;
+    private ChannelRuntimeService channelRuntimeService;
 
     // Controls
     private JButton startStopButton;
@@ -62,6 +63,10 @@ public class FilterDataPage {
         loadModbusConfig();
         initializeUI();
         updateConnectionStatus();
+    }
+    
+    public void setChannelRuntimeService(ChannelRuntimeService channelRuntimeService) {
+        this.channelRuntimeService = channelRuntimeService;
     }
 
     private void updateConnectionStatus() {
@@ -105,6 +110,10 @@ public class FilterDataPage {
         JButton dataLoggerButton = new JButton("Data Logger");
         dataLoggerButton.addActionListener(e -> openDataLoggerDialogWithPassword());
         gbc.gridx = 5; top.add(dataLoggerButton, gbc);
+        
+        JButton exportCsvButton = new JButton("Export CSV");
+        exportCsvButton.addActionListener(e -> exportTableToCSV());
+        gbc.gridx = 6; top.add(exportCsvButton, gbc);
 
         statusLabel = new JLabel("Status: Not connected. Use Settings -> Connect.");
         gbc.gridx = 0; gbc.gridy = 1; gbc.gridwidth = 5; top.add(statusLabel, gbc);
@@ -159,7 +168,7 @@ public class FilterDataPage {
     private void readModbusData() {
         try {
             ModbusMaster modbusMaster = connectionManager.getMaster();
-            if (modbusMaster == null) {
+            if (modbusMaster == null || !connectionManager.isHealthy()) {
                 SwingUtilities.invokeLater(() -> statusLabel.setText("Status: Not connected"));
                 return;
             }
@@ -266,10 +275,13 @@ public class FilterDataPage {
                     tableModel.addRow(row);
                 }
                 
-                // Calculate math channel values AFTER data is stored in ModbusDataStore
+                // Calculate math channel values BEFORE sending to logger
                 calculateMathChannels();
                 
-                // Send data to energy logger
+                // Store only calculated/formatted values in ModbusDataStore (NO raw data)
+                storeCalculatedValuesToDataStore(tableData);
+                
+                // Send ONLY calculated/formatted data to energy logger (NO raw data)
                 sendDataToLogger();
             });
             
@@ -279,27 +291,51 @@ public class FilterDataPage {
             System.err.println("Critical error in readModbusData: " + e.getMessage());
             e.printStackTrace();
             
-            // Try to recover by reconnecting
-            SwingUtilities.invokeLater(() -> {
-                statusLabel.setText("Status: Error - attempting to reconnect...");
-            });
-            
-            // Attempt to reconnect after a delay
-            new Thread(() -> {
-                try {
-                    Thread.sleep(5000); // Wait 5 seconds before reconnecting
-                    connectionManager.close();
-                    connectionManager.open(settings);
-                    SwingUtilities.invokeLater(() -> {
-                        statusLabel.setText("Status: Reconnected to " + settings.getPortName());
-                    });
-                } catch (Exception reconnectException) {
-                    System.err.println("Failed to reconnect: " + reconnectException.getMessage());
-                    SwingUtilities.invokeLater(() -> {
-                        statusLabel.setText("Status: Connection failed - " + reconnectException.getMessage());
-                    });
-                }
-            }).start();
+            // Only attempt to reconnect if we're not already in a reconnection process
+            if (!statusLabel.getText().contains("attempting to reconnect")) {
+                SwingUtilities.invokeLater(() -> {
+                    statusLabel.setText("Status: Error - attempting to reconnect...");
+                });
+                
+                // Attempt to reconnect after a delay
+                new Thread(() -> {
+                    try {
+                        Thread.sleep(3000); // Wait 3 seconds before reconnecting
+                        
+                        // Check if connection is still needed
+                        if (polling) {
+                            System.out.println("Attempting to reconnect...");
+                            SwingUtilities.invokeLater(() -> {
+                                statusLabel.setText("Status: Reconnecting...");
+                            });
+                            
+                            connectionManager.close();
+                            Thread.sleep(1000); // Additional delay to ensure clean shutdown
+                            
+                            connectionManager.open(settings);
+                            
+                            // Verify connection is actually working
+                            if (connectionManager.isOpen()) {
+                                System.out.println("Reconnection successful");
+                                SwingUtilities.invokeLater(() -> {
+                                    statusLabel.setText("Status: Connected to " + settings.getPortName());
+                                });
+                            } else {
+                                System.out.println("Reconnection failed - connection not open");
+                                SwingUtilities.invokeLater(() -> {
+                                    statusLabel.setText("Status: Reconnection failed");
+                                });
+                            }
+                        }
+                    } catch (Exception reconnectException) {
+                        System.err.println("Failed to reconnect: " + reconnectException.getMessage());
+                        reconnectException.printStackTrace();
+                        SwingUtilities.invokeLater(() -> {
+                            statusLabel.setText("Status: Connection failed - " + reconnectException.getMessage());
+                        });
+                    }
+                }).start();
+            }
         }
     }
 
@@ -308,19 +344,42 @@ public class FilterDataPage {
     }
     
     /**
-     * Send current data to energy logger
+     * Send current data to energy logger - only calculated/formatted values, NO raw data
      */
     private void sendDataToLogger() {
         try {
             EnergyDataLogger logger = EnergyDataLogger.getInstance();
             if (logger.isLogging()) {
-                // Get all current data from ModbusDataStore
+                // Get calculated values from ModbusDataStore (after math channel processing)
                 ModbusDataStore dataStore = ModbusDataStore.getInstance();
                 java.util.Map<String, Object> allValues = dataStore.getAllValues();
                 
                 if (allValues != null && !allValues.isEmpty()) {
-                    // Send to logger
-                    logger.updateData(allValues);
+                    // Filter to only include calculated/formatted values (exclude raw data)
+                    java.util.Map<String, Object> calculatedData = new java.util.HashMap<>();
+                    
+                    for (java.util.Map.Entry<String, Object> entry : allValues.entrySet()) {
+                        String channelName = entry.getKey();
+                        Object value = entry.getValue();
+                        
+                        // Only include channels that are configured for display/calculation
+                        // Exclude raw register data and internal processing data
+                        if (isCalculatedChannel(channelName)) {
+                            calculatedData.put(channelName, value);
+                        }
+                    }
+                    
+                    if (!calculatedData.isEmpty()) {
+                        System.out.println("DEBUG: Sending " + calculatedData.size() + " calculated values to energy logger:");
+                        for (java.util.Map.Entry<String, Object> entry : calculatedData.entrySet()) {
+                            System.out.println("  " + entry.getKey() + " = " + entry.getValue());
+                        }
+                        
+                        // Send only calculated values to logger
+                        logger.updateData(calculatedData);
+                    } else {
+                        System.out.println("DEBUG: No calculated data available to send to energy logger");
+                    }
                 } else {
                     System.out.println("DEBUG: No data available to send to energy logger");
                 }
@@ -342,6 +401,91 @@ public class FilterDataPage {
                 System.err.println("Failed to restart energy logger: " + restartException.getMessage());
             }
         }
+    }
+    
+    /**
+     * Store only calculated/formatted values in ModbusDataStore (NO raw data)
+     * This ensures only properly formatted values are available for Data Logger
+     */
+    private void storeCalculatedValuesToDataStore(java.util.List<Object[]> tableData) {
+        try {
+            // Get all configured channels from modbus_config.json
+            List<ModbusConfigManager.ModbusConfig> modbusConfigs = ModbusConfigManager.loadConfig();
+            
+            for (Object[] row : tableData) {
+                if (row.length >= 4) {
+                    String channelName = row[1].toString(); // Channel name
+                    Object value = row[3]; // Value
+                    
+                    // Check if this is a properly configured channel (not raw data)
+                    boolean isConfiguredChannel = false;
+                    for (ModbusConfigManager.ModbusConfig config : modbusConfigs) {
+                        if (config.getChannelName().equals(channelName)) {
+                            isConfiguredChannel = true;
+                            break;
+                        }
+                    }
+                    
+                    // Only store configured channels (formatted values)
+                    if (isConfiguredChannel) {
+                        ModbusDataStore.getInstance().updateValue(channelName, value);
+                        System.out.println("DEBUG: Stored calculated value: " + channelName + " = " + value);
+                    } else {
+                        System.out.println("DEBUG: Skipped raw data: " + channelName + " = " + value);
+                    }
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("Error storing calculated values to data store: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * Check if a channel is calculated/formatted (not raw data)
+     * Returns true for channels that should be logged, false for raw data
+     */
+    private boolean isCalculatedChannel(String channelName) {
+        // Include math channels (they are always calculated)
+        if (channelName.contains("(Math)")) {
+            return true;
+        }
+        
+        // Include channels that are configured in ModbusConfig (these are formatted)
+        try {
+            List<ModbusConfigManager.ModbusConfig> modbusConfigs = ModbusConfigManager.loadConfig();
+            for (ModbusConfigManager.ModbusConfig config : modbusConfigs) {
+                if (config.getChannelName().equals(channelName)) {
+                    return true; // This is a configured channel, not raw data
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("Error checking channel configuration: " + e.getMessage());
+        }
+        
+        // Exclude raw register data (Channel_XXXXX format without proper names)
+        if (channelName.startsWith("Channel_")) {
+            return false; // Raw register data
+        }
+        
+        // Exclude any other unconfigured channels
+        return false;
+    }
+    
+    /**
+     * Check if a channel is properly configured (has a meaningful name)
+     */
+    private boolean isConfiguredChannel(String channelName) {
+        try {
+            List<ModbusConfigManager.ModbusConfig> modbusConfigs = ModbusConfigManager.loadConfig();
+            for (ModbusConfigManager.ModbusConfig config : modbusConfigs) {
+                if (config.getChannelName().equals(channelName)) {
+                    return true;
+                }
+            }
+        } catch (Exception e) {
+            // Ignore errors
+        }
+        return false;
     }
     
     private void calculateMathChannels() {
@@ -374,7 +518,10 @@ public class FilterDataPage {
             // Add to table data
             tableModel.addRow(new Object[]{timestamp, channelName, "MATH", value});
             
-            // Publish to data store
+            // Publish to data store with "(Math)" suffix and proper formatting
+            ModbusDataStore.getInstance().updateValue(channelName + " (Math)", value);
+            
+            // Also publish without suffix for EnergyDataLogger compatibility
             ModbusDataStore.getInstance().updateValue(channelName, value);
         }
     }
@@ -384,15 +531,13 @@ public class FilterDataPage {
             for (int i = 0; i < data.length; i++) {
                 int value = (int) data[i];
                 tableData.add(new Object[]{timestamp, channelName, start + i, value});
-                // Publish to data store
-                ModbusDataStore.getInstance().updateValue(channelName, value);
+                // DO NOT store raw values in ModbusDataStore - only calculated/formatted values
             }
         } else if ("UInt16".equals(dataType)) {
             for (int i = 0; i < data.length; i++) {
                 int val = data[i] & 0xFFFF;
                 tableData.add(new Object[]{timestamp, channelName, start + i, val});
-                // Publish to data store
-                ModbusDataStore.getInstance().updateValue(channelName, val);
+                // DO NOT store raw values in ModbusDataStore - only calculated/formatted values
             }
         } else if ("Float32 (ABCD)".equals(dataType)) {
             for (int i = 0; i + 1 < data.length; i += 2) {
@@ -401,8 +546,7 @@ public class FilterDataPage {
                 int bits = (hi << 16) | lo;
                 float f = Float.intBitsToFloat(bits);
                 tableData.add(new Object[]{timestamp, channelName, start + i, f});
-                // Publish to data store
-                ModbusDataStore.getInstance().updateValue(channelName, f);
+                // DO NOT store raw values in ModbusDataStore - only calculated/formatted values
             }
         } else { // Float32 (BADC) word-swapped
             for (int i = 0; i + 1 < data.length; i += 2) {
@@ -411,8 +555,7 @@ public class FilterDataPage {
                 int bits = (hi << 16) | lo;
                 float f = Float.intBitsToFloat(bits);
                 tableData.add(new Object[]{timestamp, channelName, start + i, f});
-                // Publish to data store
-                ModbusDataStore.getInstance().updateValue(channelName, f);
+                // DO NOT store raw values in ModbusDataStore - only calculated/formatted values
             }
         }
     }
@@ -421,8 +564,7 @@ public class FilterDataPage {
         for (int i = 0; i < data.length; i++) {
             boolean value = data[i];
             tableData.add(new Object[]{timestamp, channelName, start + i, value});
-            // Publish to data store
-            ModbusDataStore.getInstance().updateValue(channelName, value);
+            // DO NOT store raw values in ModbusDataStore - only calculated/formatted values
         }
     }
 
@@ -432,6 +574,54 @@ public class FilterDataPage {
     private void updateCounters() {
         pollsLabel.setText("Number of Polls: " + polls);
         validRespLabel.setText("Valid Slave Responses: " + validResponses);
+    }
+
+    /**
+     * Export table data to CSV including math channels
+     */
+    private void exportTableToCSV() {
+        JFileChooser fileChooser = new JFileChooser();
+        fileChooser.setSelectedFile(new java.io.File("modbus_data_export.csv"));
+        
+        int result = fileChooser.showSaveDialog(panel);
+        if (result == JFileChooser.APPROVE_OPTION) {
+            try {
+                java.io.File file = fileChooser.getSelectedFile();
+                java.io.PrintWriter writer = new java.io.PrintWriter(file);
+                
+                // Write CSV header
+                writer.println("Timestamp,Channel,Address,Value");
+                
+                // Write all table data (includes math channels)
+                for (int i = 0; i < tableModel.getRowCount(); i++) {
+                    Object timestamp = tableModel.getValueAt(i, 0);
+                    Object channel = tableModel.getValueAt(i, 1);
+                    Object address = tableModel.getValueAt(i, 2);
+                    Object value = tableModel.getValueAt(i, 3);
+                    
+                    // Format the line
+                    String line = String.format("%s,%s,%s,%s", 
+                        timestamp != null ? timestamp.toString() : "",
+                        channel != null ? channel.toString() : "",
+                        address != null ? address.toString() : "",
+                        value != null ? value.toString() : "");
+                    
+                    writer.println(line);
+                }
+                
+                writer.close();
+                JOptionPane.showMessageDialog(panel, 
+                    "Data exported successfully to: " + file.getAbsolutePath() + 
+                    "\nTotal rows: " + tableModel.getRowCount(), 
+                    "Export Complete", JOptionPane.INFORMATION_MESSAGE);
+                    
+            } catch (Exception e) {
+                JOptionPane.showMessageDialog(panel, 
+                    "Export failed: " + e.getMessage(), 
+                    "Export Error", JOptionPane.ERROR_MESSAGE);
+                e.printStackTrace();
+            }
+        }
     }
 
     public JPanel getPanel() { return panel; }

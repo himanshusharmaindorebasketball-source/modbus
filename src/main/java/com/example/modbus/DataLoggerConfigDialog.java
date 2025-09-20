@@ -3,8 +3,6 @@ package com.example.modbus;
 import javax.swing.*;
 import javax.swing.border.TitledBorder;
 import java.awt.*;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
 import java.util.List;
 
 /**
@@ -31,6 +29,8 @@ public class DataLoggerConfigDialog extends JDialog {
     public DataLoggerConfigDialog(Window parent) {
         super(parent, "Data Logger Configuration", ModalityType.APPLICATION_MODAL);
         this.logger = EnergyDataLogger.getInstance();
+        // Reload configuration to ensure we have the latest settings
+        this.logger.reloadConfig();
         this.config = logger.getConfig();
         
         initializeUI();
@@ -38,7 +38,7 @@ public class DataLoggerConfigDialog extends JDialog {
     }
     
     private void initializeUI() {
-        setSize(600, 700);
+        setSize(1100, 700);
         setLocationRelativeTo(getParent());
         setDefaultCloseOperation(DISPOSE_ON_CLOSE);
         
@@ -63,17 +63,36 @@ public class DataLoggerConfigDialog extends JDialog {
         mainPanel.add(tabbedPane, BorderLayout.CENTER);
         
         // Buttons panel
-        JPanel buttonPanel = new JPanel(new FlowLayout());
+        JPanel bottomButtonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 15, 10));
+        bottomButtonPanel.setBorder(BorderFactory.createEmptyBorder(15, 0, 0, 0));
+        
         JButton saveButton = new JButton("Save Configuration");
         JButton cancelButton = new JButton("Cancel");
+        
+        // Set button properties for better text visibility and sizing
+        Font bottomButtonFont = new Font("Arial", Font.PLAIN, 13);
+        saveButton.setFont(bottomButtonFont);
+        cancelButton.setFont(bottomButtonFont);
+        
+        // Set button sizes to ensure text fits properly - slightly smaller buttons
+        Dimension saveButtonSize = new Dimension(180, 40);
+        Dimension cancelButtonSize = new Dimension(100, 40);
+        
+        saveButton.setPreferredSize(saveButtonSize);
+        saveButton.setMinimumSize(saveButtonSize);
+        saveButton.setMaximumSize(saveButtonSize);
+        
+        cancelButton.setPreferredSize(cancelButtonSize);
+        cancelButton.setMinimumSize(cancelButtonSize);
+        cancelButton.setMaximumSize(cancelButtonSize);
         
         saveButton.addActionListener(e -> saveConfiguration());
         cancelButton.addActionListener(e -> dispose());
         
-        buttonPanel.add(saveButton);
-        buttonPanel.add(cancelButton);
+        bottomButtonPanel.add(saveButton);
+        bottomButtonPanel.add(cancelButton);
         
-        mainPanel.add(buttonPanel, BorderLayout.SOUTH);
+        mainPanel.add(bottomButtonPanel, BorderLayout.SOUTH);
         
         add(mainPanel);
     }
@@ -157,6 +176,7 @@ public class DataLoggerConfigDialog extends JDialog {
         // Available channels list
         JPanel leftPanel = new JPanel(new BorderLayout());
         leftPanel.setBorder(new TitledBorder("Available Channels"));
+        leftPanel.setPreferredSize(new Dimension(380, 450));
         
         DefaultListModel<String> availableModel = new DefaultListModel<>();
         for (String channel : availableChannels) {
@@ -168,13 +188,30 @@ public class DataLoggerConfigDialog extends JDialog {
         // Add refresh button for available channels
         JPanel availableHeaderPanel = new JPanel(new BorderLayout());
         JButton refreshAvailableButton = new JButton("Refresh");
-        refreshAvailableButton.addActionListener(e -> {
-            availableModel.clear();
-            List<String> updatedChannels = getAvailableChannels();
-            for (String channel : updatedChannels) {
-                availableModel.addElement(channel);
-            }
-        });
+        refreshAvailableButton.setPreferredSize(new Dimension(100, 35));
+        refreshAvailableButton.setFont(new Font("Arial", Font.PLAIN, 11));
+               refreshAvailableButton.addActionListener(e -> {
+                   // Clear only available channels, NOT selected channels
+                   availableModel.clear();
+                   // DO NOT clear channelsListModel - this preserves selected channels
+                   
+                   // Force reload math channels and get updated list
+                   MathChannelManager.clearCache();
+                   List<String> updatedChannels = getAvailableChannels();
+                   
+                   // Populate available channels list
+                   for (String channel : updatedChannels) {
+                       availableModel.addElement(channel);
+                   }
+                   
+                   System.out.println("Data Logger Configuration refreshed - " + updatedChannels.size() + " channels available");
+                   System.out.println("DEBUG: Selected channels preserved: " + channelsListModel.getSize() + " channels");
+               });
+               
+               // Auto-refresh when panel is created
+               SwingUtilities.invokeLater(() -> {
+                   refreshAvailableButton.doClick();
+               });
         
         JLabel headerLabel = new JLabel("Available Channels (Modbus + Math)");
         headerLabel.setToolTipText("Shows all configured Modbus channels and math channels. Math channels are marked with '(Math)' suffix.");
@@ -188,21 +225,57 @@ public class DataLoggerConfigDialog extends JDialog {
         // Selected channels list
         JPanel rightPanel = new JPanel(new BorderLayout());
         rightPanel.setBorder(new TitledBorder("Selected Channels (Empty = Log All)"));
+        rightPanel.setPreferredSize(new Dimension(380, 450));
         
         channelsListModel = new DefaultListModel<>();
+        // Load selected channels from configuration
+        System.out.println("DEBUG: About to load channels from config. ChannelsToLog size: " + config.getChannelsToLog().size());
+        System.out.println("DEBUG: ChannelsToLog content: " + config.getChannelsToLog());
+        
         for (String channel : config.getChannelsToLog()) {
             channelsListModel.addElement(channel);
+            System.out.println("DEBUG: Added channel to model: " + channel);
         }
+        System.out.println("DEBUG: Loaded " + config.getChannelsToLog().size() + " selected channels from configuration");
+        System.out.println("DEBUG: Model size after loading: " + channelsListModel.getSize());
         channelsList = new JList<>(channelsListModel);
         channelsList.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
         rightPanel.add(new JScrollPane(channelsList), BorderLayout.CENTER);
         
         // Buttons
-        JPanel buttonPanel = new JPanel(new GridLayout(4, 1, 5, 5));
+        JPanel buttonPanel = new JPanel(new GridLayout(2, 2, 12, 12));
+        buttonPanel.setBorder(BorderFactory.createTitledBorder("Actions"));
+        buttonPanel.setPreferredSize(new Dimension(280, 180));
+        
         JButton addButton = new JButton("Add Selected");
         JButton removeButton = new JButton("Remove Selected");
         JButton addAllButton = new JButton("Add All");
         JButton clearButton = new JButton("Clear All");
+        
+        // Set button properties for better text visibility and sizing
+        Font buttonFont = new Font("Arial", Font.PLAIN, 12);
+        addButton.setFont(buttonFont);
+        removeButton.setFont(buttonFont);
+        addAllButton.setFont(buttonFont);
+        clearButton.setFont(buttonFont);
+        
+        // Set button sizes to ensure text fits properly - slightly smaller buttons
+        Dimension buttonSize = new Dimension(160, 45);
+        addButton.setPreferredSize(buttonSize);
+        addButton.setMinimumSize(buttonSize);
+        addButton.setMaximumSize(buttonSize);
+        
+        removeButton.setPreferredSize(buttonSize);
+        removeButton.setMinimumSize(buttonSize);
+        removeButton.setMaximumSize(buttonSize);
+        
+        addAllButton.setPreferredSize(buttonSize);
+        addAllButton.setMinimumSize(buttonSize);
+        addAllButton.setMaximumSize(buttonSize);
+        
+        clearButton.setPreferredSize(buttonSize);
+        clearButton.setMinimumSize(buttonSize);
+        clearButton.setMaximumSize(buttonSize);
         
         addButton.addActionListener(e -> {
             List<String> selected = availableList.getSelectedValuesList();
@@ -235,7 +308,8 @@ public class DataLoggerConfigDialog extends JDialog {
         buttonPanel.add(clearButton);
         
         // Main panel layout
-        JPanel mainPanel = new JPanel(new BorderLayout());
+        JPanel mainPanel = new JPanel(new BorderLayout(15, 15));
+        mainPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
         mainPanel.add(leftPanel, BorderLayout.WEST);
         mainPanel.add(buttonPanel, BorderLayout.CENTER);
         mainPanel.add(rightPanel, BorderLayout.EAST);
@@ -352,7 +426,8 @@ public class DataLoggerConfigDialog extends JDialog {
     private List<String> getAvailableChannels() {
         java.util.List<String> availableChannels = new java.util.ArrayList<>();
         
-        // Load math channel configurations if not already loaded
+        // Force reload math channel configurations (clear cache and reload)
+        MathChannelManager.clearCache();
         MathChannelManager.loadConfigs();
         
         // Add Modbus channels from ModbusConfigManager
@@ -400,6 +475,9 @@ public class DataLoggerConfigDialog extends JDialog {
         databaseUrlField.setText(config.getDatabaseUrl());
         databaseUsernameField.setText(config.getDatabaseUsername());
         databasePasswordField.setText(config.getDatabasePassword());
+        
+        // Note: Selected channels will be loaded after UI is fully initialized
+        // This is handled in createChannelSelectionPanel()
     }
     
     private void saveConfiguration() {

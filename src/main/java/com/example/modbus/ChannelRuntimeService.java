@@ -22,6 +22,9 @@ import com.serotonin.modbus4j.msg.WriteRegistersResponse;
 import javax.swing.SwingUtilities;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import com.example.modbus.EnergyDataLogger;
+import com.example.modbus.ModbusConfigManager;
+import com.example.modbus.MathChannelManager;
 
 public class ChannelRuntimeService {
     private final ModbusSettings settings;
@@ -32,6 +35,7 @@ public class ChannelRuntimeService {
     private final Map<Integer, Double> computedValues = new ConcurrentHashMap<>();
     private final ExpressionEvaluator evaluator = new ExpressionEvaluator();
     private final List<Runnable> listeners = new ArrayList<>();
+    private final EnergyDataLogger energyLogger = EnergyDataLogger.getInstance();
 
     public ChannelRuntimeService(ModbusSettings settings, ModbusMaster sharedMaster) {
         this.settings = settings;
@@ -39,6 +43,12 @@ public class ChannelRuntimeService {
         this.ownsMaster = false;
         this.timer = new Timer(true);
         timer.scheduleAtFixedRate(new TimerTask() { @Override public void run() { pollOnce(); } }, 0, 1000);
+        
+        // Start energy logging
+        energyLogger.startLogging();
+        
+        // Load math channel configurations
+        MathChannelManager.loadConfigs();
     }
 
     @Deprecated
@@ -50,13 +60,51 @@ public class ChannelRuntimeService {
         this.ownsMaster = true;
         this.timer = new Timer(true);
         timer.scheduleAtFixedRate(new TimerTask() { @Override public void run() { pollOnce(); } }, 0, 1000);
+        
+        // Start energy logging
+        energyLogger.startLogging();
     }
 
-    private void pollOnce() {
+    public void pollOnce() {
         if (master == null) return;
         List<ChannelConfig> channels = ChannelRepository.load();
         if (channels.isEmpty()) channels = ChannelConfigPage.getChannelConfigs();
-        if (channels == null || channels.isEmpty()) return;
+        if (channels.isEmpty()) {
+            // Try to load from modbus_config.json
+            try {
+                List<ModbusConfigManager.ModbusConfig> modbusConfigs = ModbusConfigManager.loadConfig();
+                if (modbusConfigs != null && !modbusConfigs.isEmpty()) {
+                    System.out.println("Loading " + modbusConfigs.size() + " channels from modbus_config.json");
+                    // Convert ModbusConfig to ChannelConfig
+                    channels = new ArrayList<>();
+                    for (int i = 0; i < modbusConfigs.size(); i++) {
+                        ModbusConfigManager.ModbusConfig config = modbusConfigs.get(i);
+                        ChannelConfig channelConfig = new ChannelConfig(
+                            i + 1, // channel number
+                            config.getAddress(), // channel address
+                            config.getDataType(), // data type
+                            config.getSlaveId(), // device id
+                            0.0, // value
+                            0.0, // low
+                            1000.0, // high
+                            0.0, // offset
+                            2, // max decimal digits
+                            new java.awt.Color(0, 0, 255), // color
+                            "", // channel maths
+                            "", // unit
+                            config.getChannelName() // channel name
+                        );
+                        channels.add(channelConfig);
+                    }
+                }
+            } catch (Exception e) {
+                System.err.println("Error loading modbus config: " + e.getMessage());
+            }
+        }
+        if (channels == null || channels.isEmpty()) {
+            System.out.println("No channels to poll");
+            return;
+        }
         System.out.println("Polling " + channels.size() + " channels");
         try {
             for (ChannelConfig ch : channels) {
@@ -130,6 +178,9 @@ public class ChannelRuntimeService {
             e.printStackTrace();
         }
         computeAll(channels);
+        computeMathChannels();
+        // DO NOT call logEnergyData - FilterDataPage handles energy logging with calculated values only
+        logToCSV(channels);
         notifyListeners();
     }
 
@@ -170,9 +221,147 @@ public class ChannelRuntimeService {
 
     public Map<Integer, Double> getRawValues() { return new HashMap<>(rawValues); }
     public Map<Integer, Double> getComputedValues() { return new HashMap<>(computedValues); }
+    
+    public String getChannelName(int channelNumber) {
+        List<ChannelConfig> channels = ChannelRepository.load();
+        if (channels.isEmpty()) channels = ChannelConfigPage.getChannelConfigs();
+        if (channels == null || channels.isEmpty()) return null;
+        
+        for (ChannelConfig ch : channels) {
+            if (ch.getChannelNumber() == channelNumber) {
+                return ch.getChannelName();
+            }
+        }
+        return null;
+    }
 
     public void addListener(Runnable r) { listeners.add(r); }
     private void notifyListeners() { SwingUtilities.invokeLater(() -> { for (Runnable r : listeners) r.run(); }); }
+    
+    /**
+     * Log energy data including math channels to EnergyDataLogger
+     */
+    private void logEnergyData(List<ChannelConfig> channels) {
+        if (!energyLogger.isLogging()) {
+            return;
+        }
+
+        Map<String, Object> energyData = new HashMap<>();
+
+        // DO NOT add raw channel values - only calculated/formatted values should be logged
+        // Raw data should never be exposed to Data Logger
+
+        // Add computed math channel values
+        for (ChannelConfig ch : channels) {
+            int channelNumber = ch.getChannelNumber();
+            if (channelNumber <= 0) continue;
+
+            String channelName = ch.getChannelName();
+            if (channelName != null && !channelName.trim().isEmpty()) {
+                Double computedValue = computedValues.get(channelNumber);
+                if (computedValue != null && !Double.isNaN(computedValue)) {
+                    // Add computed value with a suffix to distinguish from raw
+                    energyData.put(channelName + "_Computed", computedValue);
+                }
+            }
+        }
+
+        // DO NOT update energy logger from ChannelRuntimeService
+        // Only FilterDataPage should send calculated/formatted data to energy logger
+        // This prevents raw data from being logged
+    }
+    
+    /**
+     * Get a DataLogger instance for CSV logging
+     */
+    private com.example.production.DataLogger getDataLogger() {
+        return new com.example.production.DataLogger("production_data.csv");
+    }
+    
+    /**
+     * Compute math channels from math_channels.json
+     */
+    private void computeMathChannels() {
+        try {
+            List<MathChannelConfig> mathChannels = MathChannelManager.getConfigs();
+            if (mathChannels == null || mathChannels.isEmpty()) {
+                System.out.println("No math channels found");
+                return;
+            }
+            
+            System.out.println("Computing " + mathChannels.size() + " math channels");
+            
+            for (MathChannelConfig mathChannel : mathChannels) {
+                if (!mathChannel.isEnabled()) continue;
+                
+                try {
+                    // Create a context with raw values for the expression evaluator
+                    Map<String, Double> context = new HashMap<>();
+                    for (Map.Entry<Integer, Double> entry : rawValues.entrySet()) {
+                        context.put(String.valueOf(entry.getKey()), entry.getValue());
+                    }
+                    
+                    // Evaluate the math expression
+                    double result = evaluator.evaluate(mathChannel.getExpression(), context);
+                    
+                    // Store the computed value with a unique channel number
+                    int mathChannelNumber = 1000 + mathChannels.indexOf(mathChannel);
+                    computedValues.put(mathChannelNumber, result);
+                    
+                    System.out.println("Math channel " + mathChannel.getChannelName() + " = " + result);
+                    
+                } catch (Exception e) {
+                    System.err.println("Error computing math channel " + mathChannel.getChannelName() + ": " + e.getMessage());
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("Error loading math channels: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * Log data to CSV file
+     */
+    private void logToCSV(List<ChannelConfig> channels) {
+        try {
+            com.example.production.DataLogger csvLogger = getDataLogger();
+            
+            // Log raw channel values
+            for (ChannelConfig ch : channels) {
+                int channelNumber = ch.getChannelNumber();
+                if (channelNumber <= 0) continue;
+
+                String channelName = ch.getChannelName();
+                if (channelName != null && !channelName.trim().isEmpty()) {
+                    Double rawValue = rawValues.get(channelNumber);
+                    if (rawValue != null && !Double.isNaN(rawValue)) {
+                        csvLogger.appendSample(channelName, channelNumber, rawValue);
+                    }
+                }
+            }
+            
+            // Log math channel values
+            try {
+                List<MathChannelConfig> mathChannels = MathChannelManager.getConfigs();
+                if (mathChannels != null && !mathChannels.isEmpty()) {
+                    for (int i = 0; i < mathChannels.size(); i++) {
+                        MathChannelConfig mathChannel = mathChannels.get(i);
+                        if (!mathChannel.isEnabled()) continue;
+                        
+                        int mathChannelNumber = 1000 + i;
+                        Double computedValue = computedValues.get(mathChannelNumber);
+                        if (computedValue != null && !Double.isNaN(computedValue)) {
+                            csvLogger.appendSample(mathChannel.getChannelName() + " (Math)", mathChannelNumber, computedValue);
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                System.err.println("Error logging math channels to CSV: " + e.getMessage());
+            }
+        } catch (Exception e) {
+            System.err.println("Error logging to CSV: " + e.getMessage());
+        }
+    }
 
     /**
      * Write a value to a Modbus register
@@ -206,6 +395,9 @@ public class ChannelRuntimeService {
     private boolean writeHoldingRegister(int deviceId, int address, Object value, String dataType) throws ModbusTransportException {
         int zeroBasedAddress = address - 40001;
         
+        System.out.println("DEBUG: Attempting to write to register " + address + " (zero-based: " + zeroBasedAddress + ")");
+        System.out.println("DEBUG: Device ID: " + deviceId + ", Data Type: " + dataType + ", Value: " + value + " (" + value.getClass().getSimpleName() + ")");
+        
         if ("Float32".equalsIgnoreCase(dataType)) {
             // Write Float32 (2 registers)
             if (value instanceof Number) {
@@ -213,6 +405,8 @@ public class ChannelRuntimeService {
                 int intBits = Float.floatToIntBits(floatValue);
                 short high = (short) (intBits >> 16);
                 short low = (short) (intBits & 0xFFFF);
+                
+                System.out.println("DEBUG: Float32 conversion - Value: " + floatValue + ", High: " + high + ", Low: " + low);
                 
                 WriteRegistersRequest req = new WriteRegistersRequest(deviceId, zeroBasedAddress, new short[]{high, low});
                 WriteRegistersResponse resp = (WriteRegistersResponse) master.send(req);
@@ -227,10 +421,13 @@ public class ChannelRuntimeService {
             // Write single register (Int16, UInt16)
             if (value instanceof Number) {
                 short shortValue = ((Number) value).shortValue();
+                System.out.println("DEBUG: Int16 conversion - Original value: " + value + ", Short value: " + shortValue);
+                
                 WriteRegisterRequest req = new WriteRegisterRequest(deviceId, zeroBasedAddress, shortValue);
                 WriteRegisterResponse resp = (WriteRegisterResponse) master.send(req);
                 if (resp.isException()) {
                     System.err.println("Exception writing to register " + address + ": " + resp.getExceptionMessage());
+                    System.err.println("DEBUG: Modbus exception details - Code: " + resp.getExceptionCode() + ", Message: " + resp.getExceptionMessage());
                     return false;
                 }
                 System.out.println("Successfully wrote value " + shortValue + " to register " + address);

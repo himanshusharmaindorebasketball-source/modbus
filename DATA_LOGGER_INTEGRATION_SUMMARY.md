@@ -155,3 +155,9 @@ The integration is:
 ## 📝 **Summary**
 
 The data logging functionality is now seamlessly integrated with the main Start/Stop controls on the Filter Data page. Users no longer need to manage separate logging controls - everything is controlled through the single Start/Stop button, making the interface much more intuitive and easier to use.
+
+
+
+
+
+

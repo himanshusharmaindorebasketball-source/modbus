@@ -14,7 +14,6 @@ public class ModbusGUI {
     private ModbusSettings settings;
     private ChannelRuntimeService channelRuntimeService;
     private ChannelDataArrangementPage channelDataArrangementPage;
-    private com.example.production.ProductionMonitorGUI productionMonitor;
     private final ModbusConnectionManager connectionManager = new ModbusConnectionManager();
 
     public ModbusGUI() {
@@ -61,6 +60,8 @@ public class ModbusGUI {
             if (master != null) {
                 channelRuntimeService = new ChannelRuntimeService(settings, master);
                 channelDataArrangementPage = new ChannelDataArrangementPage(channelRuntimeService);
+                // Connect ChannelRuntimeService to FilterDataPage for math channel computation
+                filterDataPage.setChannelRuntimeService(channelRuntimeService);
             } else {
                 // Create channel arrangement page without runtime service for now
                 channelDataArrangementPage = new ChannelDataArrangementPage(null);
@@ -77,24 +78,16 @@ public class ModbusGUI {
 
         if (channelDataArrangementPage != null) tabbedPane.addTab("Channel Arrangement", channelDataArrangementPage.getPanel());
 
-        JPanel monitorPanel = new JPanel(new BorderLayout());
-        JButton openMonitor = new JButton("Open Production Monitor");
-        openMonitor.addActionListener(e -> {
-            if (productionMonitor == null) {
-                productionMonitor = new com.example.production.ProductionMonitorGUI(settings);
-            } else {
-                productionMonitor.applySettings(settings);
-                productionMonitor.bringToFront();
-            }
-        });
-        monitorPanel.add(new JLabel("Launch the production monitoring UI with current Modbus settings."), BorderLayout.NORTH);
-        monitorPanel.add(openMonitor, BorderLayout.CENTER);
-        tabbedPane.addTab("Production Monitor", monitorPanel);
+        // Production Monitor functionality integrated into FilterDataPage Data Logger
+
+        // Add Reports tab
+        PowerConsumptionTab powerConsumptionTab = new PowerConsumptionTab();
+        tabbedPane.addTab("Reports", powerConsumptionTab);
 
         settingsPage = new SettingsPage(
                 updatedSettings -> {
                     settings = updatedSettings;
-                    if (productionMonitor != null) productionMonitor.applySettings(settings);
+                    // Production Monitor functionality integrated into FilterDataPage
                 },
                 connectSettings -> {
                     try {
@@ -111,6 +104,8 @@ public class ModbusGUI {
                         try {
                             channelRuntimeService = new ChannelRuntimeService(settings, connectionManager.getMaster());
                             channelDataArrangementPage = new ChannelDataArrangementPage(channelRuntimeService);
+                            // Connect ChannelRuntimeService to FilterDataPage for math channel computation
+                            filterDataPage.setChannelRuntimeService(channelRuntimeService);
                         } catch (Exception e) {
                             JOptionPane.showMessageDialog(null, "Channel runtime re-init failed: " + e.getMessage());
                         }

@@ -166,6 +166,15 @@ public class EnergyDataLogger {
     }
     
     /**
+     * Reload configuration from file (public method for external use)
+     */
+    public void reloadConfig() {
+        System.out.println("DEBUG: Reloading EnergyDataLogger configuration from file");
+        loadConfig();
+        System.out.println("DEBUG: Loaded " + config.getChannelsToLog().size() + " channels from configuration: " + config.getChannelsToLog());
+    }
+    
+    /**
      * Save configuration to file
      */
     public void saveConfig() {
@@ -253,7 +262,10 @@ public class EnergyDataLogger {
         
         // Filter channels if specific channels are configured
         if (!config.getChannelsToLog().isEmpty()) {
+            System.out.println("DEBUG: Filtering channels. Selected channels: " + config.getChannelsToLog());
+            System.out.println("DEBUG: Available data keys: " + dataCopy.keySet());
             dataCopy = filterChannels(dataCopy);
+            System.out.println("DEBUG: Filtered data keys: " + dataCopy.keySet());
         }
         
         EnergyDataPoint dataPoint = new EnergyDataPoint(dataCopy);
@@ -335,9 +347,22 @@ public class EnergyDataLogger {
      */
     private Map<String, Object> filterChannels(Map<String, Object> data) {
         Map<String, Object> filtered = new HashMap<>();
-        for (String channel : config.getChannelsToLog()) {
-            if (data.containsKey(channel)) {
-                filtered.put(channel, data.get(channel));
+        for (String selectedChannel : config.getChannelsToLog()) {
+            // Try exact match first
+            if (data.containsKey(selectedChannel)) {
+                filtered.put(selectedChannel, data.get(selectedChannel));
+            } else {
+                // Try to find math channel without "(Math)" suffix
+                String baseChannelName = selectedChannel.replace(" (Math)", "");
+                if (data.containsKey(baseChannelName)) {
+                    filtered.put(selectedChannel, data.get(baseChannelName));
+                } else {
+                    // Try to find math channel with "(Math)" suffix
+                    String mathChannelName = baseChannelName + " (Math)";
+                    if (data.containsKey(mathChannelName)) {
+                        filtered.put(selectedChannel, data.get(mathChannelName));
+                    }
+                }
             }
         }
         return filtered;
@@ -820,6 +845,7 @@ public class EnergyDataLogger {
         return logFiles;
     }
     
+
     /**
      * Escape CSV values to handle commas, quotes, and newlines properly
      */

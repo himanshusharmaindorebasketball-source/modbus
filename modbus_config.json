@@ -52,6 +52,41 @@
     "address": 30097,
     "length": 2,
     "dataType": "Float32 (BADC)",
-    "channelName": "Energy Consumption"
+    "channelName": "Energy_Consumption"
+  },
+  {
+    "slaveId": 5,
+    "address": 40004,
+    "length": 1,
+    "dataType": "Int16",
+    "channelName": "CT Primary"
+  },
+  {
+    "slaveId": 5,
+    "address": 30017,
+    "length": 2,
+    "dataType": "Float32 (BADC)",
+    "channelName": "Current L1"
+  },
+  {
+    "slaveId": 5,
+    "address": 30019,
+    "length": 2,
+    "dataType": "Float32 (BADC)",
+    "channelName": "Current L2"
+  },
+  {
+    "slaveId": 5,
+    "address": 30021,
+    "length": 2,
+    "dataType": "Float32 (BADC)",
+    "channelName": "Current L3"
+  },
+  {
+    "slaveId": 5,
+    "address": 40008,
+    "length": 1,
+    "dataType": "Int16",
+    "channelName": "Slave ID"
   }
 ]
